@@ -16,6 +16,8 @@ import { Share2, FileText, Globe } from 'lucide-react';
 import { useMeetingStore } from '../../store/meetingStore';
 import { translateText, SUPPORTED_LANGUAGES } from '../../utils/translate';
 import toast from 'react-hot-toast';
+import { isMobile } from 'react-device-detect';
+
 
 const SHOW_INSTRUCTIONS_KEY = 'showRecordingInstructions';
 
@@ -60,6 +62,7 @@ export default function AudioRecorder({
   const [translatedSummary, setTranslatedSummary] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState(false);
   const [showInstructions, setShowInstructions] = useState(() => {
+    if (isMobile) return false;
     const savedPreference = localStorage.getItem(SHOW_INSTRUCTIONS_KEY);
     return savedPreference === null ? true : savedPreference === 'true';
   });

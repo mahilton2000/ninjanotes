@@ -53,7 +53,7 @@ export function useAudioRecorder({
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
-  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  // const [micStream, setMicStream] = useState<MediaStream | null>(null);
   const [isTranscriberLoading, setIsTranscriberLoading] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -63,6 +63,8 @@ export function useAudioRecorder({
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastMessageRef = useRef<TranscriptMessage | null>(null);
   const partialTranscriptRef = useRef<string>('');
+  const systemStreamRef = useRef<MediaStream | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -86,17 +88,17 @@ export function useAudioRecorder({
       setAudioUrl(uploadedUrl);
       await onAudioUrlUpdate(uploadedUrl);
 
-      setNotificationStatus('transcribing');
-      const result = await transcribeAudio(audioBlob);
+      // setNotificationStatus('transcribing');
+      // const result = await transcribeAudio(audioBlob);
 
-      if (result.text) {
-        onTranscriptUpdate(result.text, result.utterances);
-      }
+      // if (result.text) {
+      //   onTranscriptUpdate(result.text, result.utterances);
+      // }
 
       setNotificationStatus('completed');
       setTimeout(() => setShowNotification(false), 3000);
 
-      return { url: uploadedUrl, transcript: result.text };
+      return { url: uploadedUrl, transcript: currentTranscript };
     } catch (error: any) {
       console.error('Audio processing error:', error);
       setNotificationStatus('error');
@@ -144,12 +146,51 @@ export function useAudioRecorder({
       console.log('Starting recording...');
       setIsTranscriberLoading(true);
       
-      // Get audio stream(s)
-      const stream = await getAudioStream();
-      setMicStream(stream);
-      console.log('Got mic stream:', stream);
+      // Get audio streams based on platform
+      let streamForRecording: MediaStream;
+      if (isMobile) {
+        streamForRecording = await getAudioStream();
+        micStreamRef.current = streamForRecording;
+      } else {
+        // Desktop: Combine mic and system audio
+        const micStream = await getAudioStream();
+        const systemStream = await getSystemAudioStream();
+        
+        // Store both stream references
+        micStreamRef.current = micStream;
+        systemStreamRef.current = systemStream;
+        
+        const audioContext = new AudioContext({ sampleRate: 16000 });
+        const micSource = audioContext.createMediaStreamSource(micStream);
+        const systemSource = audioContext.createMediaStreamSource(systemStream);
+
+        const merger = audioContext.createChannelMerger(2);
+        micSource.connect(merger, 0, 0);
+        systemSource.connect(merger, 0, 1);
+
+        const destination = audioContext.createMediaStreamDestination();
+        merger.connect(destination);
+        
+        streamForRecording = destination.stream;
+      }
       
-      // Get AssemblyAI token
+      console.log('Got audio stream:', streamForRecording);
+      
+      // Setup MediaRecorder for blob recording
+      audioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(streamForRecording, getMediaRecorderOptions());
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start(1000); // Collect data every second
+
+      
+      // Get AssemblyAI token and setup transcriber (unchanged)
       const user = auth.currentUser;
       if (!user) {
         throw new Error('User not authenticated');
@@ -161,7 +202,6 @@ export function useAudioRecorder({
         }
       });
       const { token } = await response.json();
-      console.log('Got AssemblyAI token');
 
       // Initialize realtime transcriber
       const rt = new RealtimeTranscriber({
@@ -169,56 +209,41 @@ export function useAudioRecorder({
         sampleRate: 16000,
         wordBoost: [],
       });
-      console.log('Created RealtimeTranscriber instance');
 
-      // Use type assertion to help TypeScript understand the event types
+      // Setup event handlers (unchanged)
       (rt as unknown as {
-        on<K extends keyof TranscriberEvents>(
-          event: K,
-          listener: TranscriberEvents[K]
-        ): void;
-      }).on("transcript", (message: TranscriptMessage) => {
-        handleTranscriptUpdate(message);
-      });
-
+        on<K extends keyof TranscriberEvents>(event: K, listener: TranscriberEvents[K]): void;
+      }).on("transcript", handleTranscriptUpdate);
+      
       (rt as unknown as {
-        on<K extends keyof TranscriberEvents>(
-          event: K,
-          listener: TranscriberEvents[K]
-        ): void;
+        on<K extends keyof TranscriberEvents>(event: K, listener: TranscriberEvents[K]): void;
       }).on("error", (error: any) => {
         console.error("Realtime transcription error:", error);
         toast.error("Transcription error occurred");
       });
 
       await rt.connect();
-      console.log('Connected to AssemblyAI realtime service');
       realtimeTranscriberRef.current = rt;
       setIsTranscriberLoading(false);
 
-      // Create audio context with correct sample rate
+      // Audio processing setup
       audioContextRef.current = new AudioContext({ sampleRate: 16000 });
-      const micSource = audioContextRef.current.createMediaStreamSource(stream);
-
-      // Create audio worklet for processing
-      const bufferSize = 4096;
-      const numberOfInputChannels = 1;
-      const numberOfOutputChannels = 1;
+      const audioSource = audioContextRef.current.createMediaStreamSource(streamForRecording);
 
       const scriptProcessor = audioContextRef.current.createScriptProcessor(
-        bufferSize,
-        numberOfInputChannels,
-        numberOfOutputChannels
+        4096,
+        1,
+        1
       );
 
-      micSource.connect(scriptProcessor);
+      audioSource.connect(scriptProcessor);
       scriptProcessor.connect(audioContextRef.current.destination);
 
+      // Process audio data for AssemblyAI
       scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
         const inputBuffer = audioProcessingEvent.inputBuffer;
         const inputData = inputBuffer.getChannelData(0);
 
-        // Convert Float32Array to Int16Array
         const int16Data = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
           const s = Math.max(-1, Math.min(1, inputData[i]));
@@ -234,6 +259,7 @@ export function useAudioRecorder({
         }
       };
 
+      // Rest of the setup (unchanged)
       setIsRecording(true);
       setElapsedTime(0);
       setNotificationStatus('recording');
@@ -244,7 +270,6 @@ export function useAudioRecorder({
         setElapsedTime(prev => prev + 1);
       }, 1000);
 
-      // Clear all transcripts when starting a new recording
       setCurrentTranscript('');
       lastMessageRef.current = null;
       partialTranscriptRef.current = '';
@@ -258,7 +283,7 @@ export function useAudioRecorder({
     }
   }, [meetingId, onAudioUrlUpdate, onTranscriptUpdate, clearTimer]);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback(async () => {
     if (isRecording) {
       try {
         console.log('Stopping recording...');
@@ -266,12 +291,50 @@ export function useAudioRecorder({
         setIsRecording(false);
         setShowNotification(false);
 
-        // Stop all tracks in the media stream
-        if (micStream) {
-          micStream.getTracks().forEach(track => {
+        // Stop MediaRecorder and process the recorded audio
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          await new Promise<void>((resolve) => {
+            mediaRecorderRef.current!.onstop = async () => {
+              try {
+                // Create blob from recorded chunks
+                const audioBlob = createAudioBlobFromChunks(audioChunksRef.current);
+                const tempUrl = URL.createObjectURL(audioBlob);
+                setAudioUrl(tempUrl);
+
+                // Process the recorded audio
+                await processAudioData(audioBlob);
+                
+                // Clear the chunks
+                audioChunksRef.current = [];
+                resolve();
+              } catch (error) {
+                console.error('Error processing audio:', error);
+                resolve();
+              }
+            };
+            
+            mediaRecorderRef.current!.stop();
+          });
+        }
+
+        // Stop microphone stream
+        if (micStreamRef.current) {
+          console.log('Stopping microphone stream...');
+          micStreamRef.current.getTracks().forEach(track => {
+            console.log(`Stopping microphone track: ${track.kind}`);
             track.stop();
           });
-          setMicStream(null);
+          micStreamRef.current = null;
+        }
+
+        // Stop system audio stream
+        if (systemStreamRef.current) {
+          console.log('Stopping system audio stream...');
+          systemStreamRef.current.getTracks().forEach(track => {
+            console.log(`Stopping system track: ${track.kind}`);
+            track.stop();
+          });
+          systemStreamRef.current = null;
         }
 
         // Stop realtime transcription
@@ -297,7 +360,7 @@ export function useAudioRecorder({
         toast.error('Failed to stop recording properly');
       }
     }
-  }, [isRecording, clearTimer, micStream]);
+  }, [isRecording, clearTimer]);
 
   const downloadRecording = useCallback(() => {
     if (audioUrl) {
