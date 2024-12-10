@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { uploadAudioFile, createAudioBlobFromChunks, getMediaRecorderOptions, getAudioStream, getSystemAudioStream, createAudioContext, createMediaStreamDestination } from '../utils/audioHelpers';
-import { transcribeAudio } from '../services/assemblyAI';
 import { Speaker } from '../types/transcription';
 import toast from 'react-hot-toast';
 import { isMobile } from 'react-device-detect';
 import { RealtimeTranscriber } from 'assemblyai';
-import { auth } from '../lib/firebase';
+import { apiFetch } from '../utils/api';
 
 interface UseAudioRecorderProps {
   meetingId: string;
@@ -191,17 +190,8 @@ export function useAudioRecorder({
 
       
       // Get AssemblyAI token and setup transcriber (unchanged)
-      const user = auth.currentUser;
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-      const idToken = await user.getIdToken();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/getAssemblyAIToken`, {
-        headers: {
-          'Authorization': `Bearer ${idToken}`
-        }
-      });
-      const { token } = await response.json();
+      const data = await apiFetch('/getAssemblyAIToken');
+      const token = data.token;
 
       // Initialize realtime transcriber
       const rt = new RealtimeTranscriber({
