@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Copy, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { translateText, SUPPORTED_LANGUAGES } from '../../utils/translate';
@@ -19,6 +19,14 @@ export function TranscriptDisplay({ transcript, speakers }: TranscriptDisplayPro
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [translatedText, setTranslatedText] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (transcriptRef.current) {
+      const element = transcriptRef.current;
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [transcript, translatedText]);
 
   const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const targetLanguage = e.target.value;
@@ -82,7 +90,7 @@ export function TranscriptDisplay({ transcript, speakers }: TranscriptDisplayPro
         </select>
       </div>
 
-      <div className="prose max-w-none h-full overflow-y-auto pt-12">
+      <div ref={transcriptRef} className="prose max-w-none h-full overflow-y-auto pt-12 scroll-smooth">
         {isTranslating ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
