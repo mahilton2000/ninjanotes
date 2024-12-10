@@ -81,8 +81,8 @@ export function useAudioRecorder({
 
   const processAudioData = async (audioBlob: Blob) => {
     try {
-      setNotificationStatus('processing');
-      setShowNotification(true);
+      // setNotificationStatus('processing');
+      // setShowNotification(true);
 
       const uploadedUrl = await uploadAudioFile(meetingId, audioBlob);
       setAudioUrl(uploadedUrl);
@@ -95,7 +95,7 @@ export function useAudioRecorder({
       //   onTranscriptUpdate(result.text, result.utterances);
       // }
 
-      setNotificationStatus('completed');
+      // setNotificationStatus('completed');
       setTimeout(() => setShowNotification(false), 3000);
 
       return { url: uploadedUrl, transcript: currentTranscript };

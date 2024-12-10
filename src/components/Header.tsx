@@ -30,10 +30,15 @@ export default function Header() {
   const isHome = location.pathname === '/';
   const isCalendar = location.pathname === '/calendar';
 
+  console.log('isRecording', user);
+
+  // Add a class to indicate the header is disabled
+  const headerClass = isRecording ? 'opacity-50 pointer-events-none' : '';
+
   if (!user) return null;
 
   return (
-    <header className="bg-white shadow">
+    <header className={`bg-white shadow ${headerClass}`}>
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">

@@ -12,6 +12,7 @@ import ResourceManager from '../components/resources/ResourceManager';
 import ActionItemList from '../components/actionItems/ActionItemList';
 import { Meeting, MeetingType } from '../types/meeting';
 import toast from 'react-hot-toast';
+import { useRecordingStore } from '../store/recordingStore';
 
 const meetingTools = [
   { icon: Mic, label: 'Record', shortLabel: 'Record', action: 'record' },
@@ -32,7 +33,8 @@ export default function MeetingDetail() {
   const [editedTitle, setEditedTitle] = useState('');
   const [isEditingCategory, setIsEditingCategory] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
+  // const [isRecording, setIsRecording] = useState(false);
+  const { isRecording, setIsRecording } = useRecordingStore();
 
   // Record Meeting state
   const [recordTranscript, setRecordTranscript] = useState('');

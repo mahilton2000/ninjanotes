@@ -118,7 +118,6 @@ export default function AudioRecorder({
     } else {
       if (isRecording) {
         stopRecording();
-        handleGenerateSummary();
       } else {
         startRecordingFn();
       }
