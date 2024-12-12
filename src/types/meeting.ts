@@ -12,7 +12,13 @@ export type MeetingType =
   | 'performance'
   | 'strategic'
   | '360-summary'
-  | 'quiz-generator';
+  | 'quiz-generator'
+  | 'doctors-visit'
+  | 'interview'
+  | 'board-meeting'
+  | 'investor-earnings-call'
+  | 'vehicle-repair'
+  | 'crm';
 
 export type ContentSource = 'record' | 'upload';
 
@@ -56,5 +62,11 @@ export const meetingTypes: Record<MeetingType, string> = {
   performance: 'Performance Review',
   strategic: 'Strategic Planning',
   '360-summary': '360° Content Summary',
-  'quiz-generator': 'Interactive Quiz Generator'
+  'quiz-generator': 'Interactive Quiz Generator',
+  'doctors-visit': 'Doctor\'s Visit',
+  'interview': 'Interview',
+  'board-meeting': 'Board Meeting',
+  'investor-earnings-call': 'Investor/Earnings Call',
+  'vehicle-repair': 'Vehicle Repair',
+  'crm': 'CRM Summary'
 };
